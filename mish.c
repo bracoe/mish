@@ -26,15 +26,14 @@
 #define PRINT_PROMPT fprintf(stderr, "mish%% "); fflush(stderr);
 
 /*Function prototypes.*/
-int fork_commands(command *command_array, int number_of_commands);
-int execute_external_command(command cmd, int in_pipe[2], int out_pipe[2]);
+int pipe_and_fork_commands(command *command_array, int number_of_commands);
+int execute_external_command(command cmd);
 void internal_cd(char *dir);
 void internal_echo(char **message, int words);
 int check_for_internal_commands(command *command_array, int number_of_commands);
 void run_internal_commands(command *command_array, int number_of_commands);
 void wait_for_children(int num_of_children);
 int redirect_extrenal_command(command cmd);
-int connect_pipes_to_command(int in_pipe[2], int out_pipe[2]);
 char *get_home_directory();
 
 //TODO: handle signal interrupt
@@ -65,11 +64,13 @@ int main(int argc, char const *argv[]) {
     command command_array[MAXCOMMANDS];
 
     while(1){ //Main terminal loop only quit due to signal.
-    	//printf("starting mish\n");
         PRINT_PROMPT;
 
-        fgets(input_line, MAXLINELEN, stdin); //TODO: check return
-        //printf("parent: input line: %s\n", input_line);
+        if(fgets(input_line, MAXLINELEN, stdin)==NULL){
+        	if(errno != 0){
+        		perror("Reading input: ");
+        	}
+        }
         int number_of_commands = parse(input_line,command_array);
 
         if(check_for_internal_commands(command_array, number_of_commands) > 0){
@@ -78,7 +79,7 @@ int main(int argc, char const *argv[]) {
         }
         else{ //External commands
             //printf("Starting external command commands!\n");
-            int ret = fork_commands(command_array, number_of_commands);
+            int ret = pipe_and_fork_commands(command_array, number_of_commands);
             if(ret < 0){
                 //TODO: handle it
                 break;
@@ -203,7 +204,7 @@ void internal_echo(char **message, int words){
 /**
  *
  */
-int fork_commands(command *command_array, int number_of_commands){
+int pipe_and_fork_commands(command *command_array, int number_of_commands){
 
     int in_pipe[2];
     int out_pipe[2];
@@ -212,7 +213,7 @@ int fork_commands(command *command_array, int number_of_commands){
     for(int i = 0; i < number_of_commands; i++){
         //Fork the command(s)
     	if(i < number_of_commands-1){
-			int ret = pipe(out_pipe);
+    		int ret = pipe(out_pipe);
 			if (ret == -1) {
 				perror("Pipe");
 				return -1;
@@ -236,7 +237,7 @@ int fork_commands(command *command_array, int number_of_commands){
 				}
 				ret = close(in_pipe[WRITE_END]);
 				if(ret < 0){
-					perror("Closing pipe: ");
+					perror("Closing pipe write end: ");
 				}
 			}
         	if(i != number_of_commands-1){
@@ -248,18 +249,24 @@ int fork_commands(command *command_array, int number_of_commands){
 				}
 				ret = close(out_pipe[READ_END]);
 				if(ret < 0){
-					perror("Closing pipe: ");
+					perror("Closing pipe read end: ");
 				}
 			}
 
-            execute_external_command(command_array[i], in_pipe, out_pipe);
+            execute_external_command(command_array[i]);
             return -1; //Should never happen
 
         } else {
             // Parentprocess
         	if(i != 0){
-				close(in_pipe[READ_END]);
-				close(in_pipe[WRITE_END]);
+        		int ret = close(in_pipe[READ_END]);
+				if(ret < 0){
+					perror("Closing pipe: ");
+				}
+				ret = close(in_pipe[WRITE_END]);
+				if(ret < 0){
+					perror("Closing pipe: ");
+				}
 			}
         	in_pipe[0] = out_pipe[0];
         	in_pipe[1] = out_pipe[1];
@@ -268,69 +275,16 @@ int fork_commands(command *command_array, int number_of_commands){
         }
 
     }
-    if(number_of_commands > 1){
-		close(in_pipe[READ_END]);
-		close(in_pipe[WRITE_END]);
-
-	}
-
     return number_of_commands;
-}
-
-/**
- * connect_pipes_to_command() - Connects the relevant pipes to the current
- * process. If the pipe is not NULL, then the current file descriptor connected
- * for the relevant standard input or output.
- * @param in_pipe The pipe which should be connected to the standard input.
- * @param out_pipe The pipe which should be connected to the standard output.
- * @return 0 if the process was successful and -1 if one or both pipes could not
- *  connect. But still 0 even if a pipe end was not able to close.
- */
-int connect_pipes_to_command(int in_pipe[2], int out_pipe[2]){
-
-	int ret = 0;
-
-    if(in_pipe != NULL){
-    	//printf("Child: changing stdin!\n");
-    	ret = dupPipe(in_pipe, READ_END, STDIN_FILENO);
-		if(ret < 0){
-			fprintf(stderr, "inpipe");
-			return -1;
-		}
-		/*ret = close(in_pipe[WRITE_END]);
-		if(ret < 0){
-			perror("Closing pipe: ");
-		}*/
-    }
-
-    if(out_pipe != NULL){
-    	//printf("Child: changing stdout!\n");
-    	ret = dupPipe(out_pipe, WRITE_END, STDOUT_FILENO);
-		if(ret < 0){
-			fprintf(stderr, "outpipe");
-			return -1;
-		}
-		/*ret = close(out_pipe[READ_END]);
-		if(ret < 0){
-			perror("Closing pipe: ");
-		}*/
-    }
-    return 0;
 }
 
 /**
  *
  */
-int execute_external_command(command cmd, int in_pipe[2], int out_pipe[2]){
-	/*if(connect_pipes_to_command(in_pipe, out_pipe) < 0){
-		fprintf(stderr, "Could not connect pipes for %s\n",cmd.argv[0]);
-		//TODO: something went wrong
-		return -1;
-	}*/
+int execute_external_command(command cmd){
 	//printf("Child: pipes connected!\n");
 	if(redirect_extrenal_command(cmd) < 0){
 		fprintf(stderr, "Could not redirect for %s\n", cmd.argv[0]);
-		//TODO: something went wrong
 		return -1;
 	}
     //printf("Child: Running process: %s", cmd.argv[0]);
@@ -350,8 +304,6 @@ int execute_external_command(command cmd, int in_pipe[2], int out_pipe[2]){
  * @return 0 on success or -1 on failure.
  */
 int redirect_extrenal_command(command cmd){
-    //printf("Child: executing command\n");
-    //printf("Child: outputfile: %s inputfile: %s\n", cmd.outfile, cmd.infile);
     //Check if input/output has to be redirected
     if(cmd.infile != NULL){
         //printf("Child: inputfile: %s\n", cmd.infile);
