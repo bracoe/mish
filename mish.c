@@ -205,22 +205,18 @@ void internal_echo(char **message, int words){
  */
 int fork_commands(command *command_array, int number_of_commands){
 
-    int *in_pipe = NULL;
-    int *out_pipe = NULL;
+    int in_pipe[2];
+    int out_pipe[2];
 
+    //Create pipe
     for(int i = 0; i < number_of_commands; i++){
         //Fork the command(s)
     	if(i < number_of_commands-1){
-    		int fd[2];
-			int ret = pipe(fd + (2*i));
+			int ret = pipe(out_pipe);
 			if (ret == -1) {
 				perror("Pipe");
 				return -1;
 			}
-			out_pipe = fd;
-    	}
-    	else{
-    		out_pipe = NULL;
     	}
 
         pid_t pid = fork();
@@ -230,19 +226,53 @@ int fork_commands(command *command_array, int number_of_commands){
 
         } else if ( pid == 0 ) { //Child process
             //printf("Child: externals redirected!\n");
+        	int ret = 0;
+        	if(i != 0){
+				//printf("Child: changing stdin!\n");
+				ret = dupPipe(in_pipe, READ_END, STDIN_FILENO);
+				if(ret < 0){
+					fprintf(stderr, "inpipe");
+					return -1;
+				}
+				ret = close(in_pipe[WRITE_END]);
+				if(ret < 0){
+					perror("Closing pipe: ");
+				}
+			}
+        	if(i != number_of_commands-1){
+				//printf("Child: changing stdout!\n");
+				ret = dupPipe(out_pipe, WRITE_END, STDOUT_FILENO);
+				if(ret < 0){
+					fprintf(stderr, "outpipe");
+					return -1;
+				}
+				ret = close(out_pipe[READ_END]);
+				if(ret < 0){
+					perror("Closing pipe: ");
+				}
+			}
+
             execute_external_command(command_array[i], in_pipe, out_pipe);
             return -1; //Should never happen
 
         } else {
             // Parentprocess
-        	if(in_pipe != NULL){
+        	if(i != 0){
 				close(in_pipe[READ_END]);
 				close(in_pipe[WRITE_END]);
-				in_pipe = NULL;
 			}
-			in_pipe = out_pipe;
+        	in_pipe[0] = out_pipe[0];
+        	in_pipe[1] = out_pipe[1];
+
+
         }
+
     }
+    if(number_of_commands > 1){
+		close(in_pipe[READ_END]);
+		close(in_pipe[WRITE_END]);
+
+	}
 
     return number_of_commands;
 }
@@ -267,10 +297,10 @@ int connect_pipes_to_command(int in_pipe[2], int out_pipe[2]){
 			fprintf(stderr, "inpipe");
 			return -1;
 		}
-		ret = close(in_pipe[WRITE_END]);
+		/*ret = close(in_pipe[WRITE_END]);
 		if(ret < 0){
 			perror("Closing pipe: ");
-		}
+		}*/
     }
 
     if(out_pipe != NULL){
@@ -280,10 +310,10 @@ int connect_pipes_to_command(int in_pipe[2], int out_pipe[2]){
 			fprintf(stderr, "outpipe");
 			return -1;
 		}
-		ret = close(out_pipe[READ_END]);
+		/*ret = close(out_pipe[READ_END]);
 		if(ret < 0){
 			perror("Closing pipe: ");
-		}
+		}*/
     }
     return 0;
 }
@@ -292,14 +322,14 @@ int connect_pipes_to_command(int in_pipe[2], int out_pipe[2]){
  *
  */
 int execute_external_command(command cmd, int in_pipe[2], int out_pipe[2]){
-	if(connect_pipes_to_command(in_pipe, out_pipe) < 0){
+	/*if(connect_pipes_to_command(in_pipe, out_pipe) < 0){
 		fprintf(stderr, "Could not connect pipes for %s\n",cmd.argv[0]);
 		//TODO: something went wrong
 		return -1;
-	}
+	}*/
 	//printf("Child: pipes connected!\n");
 	if(redirect_extrenal_command(cmd) < 0){
-		fprintf(stderr, "Could not redircet for %s\n", cmd.argv[0]);
+		fprintf(stderr, "Could not redirect for %s\n", cmd.argv[0]);
 		//TODO: something went wrong
 		return -1;
 	}
