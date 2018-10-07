@@ -8,6 +8,7 @@
 /* Own inculdes */
 #include "parser.h"
 #include "execute.h"
+#include "list.h"
 
 /* Standard libraries */
 #include <stdio.h>
@@ -25,6 +26,9 @@
 /* Defines */
 #define PRINT_PROMPT fprintf(stderr, "mish%% "); fflush(stderr);
 
+/*Global variable */
+struct list *current_mish_children;
+
 /*Function prototypes.*/
 int pipe_and_fork_commands(command *command_array, int number_of_commands);
 int execute_external_command(command cmd);
@@ -35,19 +39,37 @@ void run_internal_commands(command *command_array, int number_of_commands);
 void wait_for_children(int num_of_children);
 int redirect_extrenal_command(command cmd);
 char *get_home_directory();
+void setup_signal_handling();
+void remove_child_from_list_of_current_children(pid_t complete_child);
+void kill_children();
 
 //TODO: handle signal interrupt
-/* SigFunc *mish_signal_handler(int signo, Sigfunc *func){
-     struct sigaction act, oact;
-     act.sa_handler = func;
-     sigemptyset(&act.sa_mask);
-     act.sa_flags = 0;
-     if(signo == SIGALRM)
- }
 
 void mish_signal_handler(int signo){
+	if(signo == SIGINT){
+		//printf("Got interrupt sig handle");
+		kill_children();
+	}
 
-}*/
+}
+
+void kill_children(){
+	list_pos first_pos = list_get_first_position(current_mish_children);
+	list_pos current_pos = \
+	list_get_previous_position(list_get_last_position(current_mish_children), \
+			current_mish_children);
+
+	while(current_pos != first_pos){
+		pid_t child_pid = *(pid_t *)list_get_value(current_pos);
+		//printf("Child pid: %d", child_pid);
+		int ret = kill(child_pid, SIGINT);
+		if(ret < 0){
+			perror("Killed child process: ");
+		}
+		current_pos = list_get_previous_position(current_pos, \
+												current_mish_children);
+	}
+}
 
 /**
  * The main function of the program contains an eternal loop to process the
@@ -60,15 +82,27 @@ void mish_signal_handler(int signo){
  */
 int main(int argc, char const *argv[]) {
 
+	current_mish_children = list_new();
+	setup_signal_handling();
+
     char input_line[MAXLINELEN+1];
     command command_array[MAXCOMMANDS];
 
     while(1){ //Main terminal loop only quit due to signal.
         PRINT_PROMPT;
 
-        if(fgets(input_line, MAXLINELEN, stdin)==NULL){
-        	if(errno != 0){
+        if(fgets(input_line, MAXLINELEN, stdin) == NULL){
+        	if(errno == EINTR){
+        		printf("\n");
+        		errno = 0; // Clean errno
+        		continue;
+        	}
+        	else if(errno != 0){
         		perror("Reading input: ");
+        		continue;
+        	}
+        	else{
+        		break;
         	}
         }
         int number_of_commands = parse(input_line,command_array);
@@ -101,11 +135,44 @@ void wait_for_children(int num_of_children){
     pid_t complete_child;
     while(num_of_completed_children < num_of_children){
         if((complete_child = wait(&status)) < 0){
-            perror("Wait for child error: ");
-            fprintf(stderr, "Child was %d\n", complete_child);
+        	if(errno != EINTR){
+        		perror("Wait for child error: ");
+				fprintf(stderr, "Child was %d\n", complete_child);
+        	}
         }
+        remove_child_from_list_of_current_children(complete_child);
         num_of_completed_children++;
     }
+}
+
+void remove_child_from_list_of_current_children(pid_t complete_child){
+	list_pos first_pos = list_get_first_position(current_mish_children);
+	list_pos current_pos = \
+	list_get_previous_position(list_get_last_position(current_mish_children), \
+								current_mish_children);
+
+	while(current_pos != first_pos){
+		if(complete_child == *(int*)list_get_value(current_pos)){
+			list_remove_element(current_pos, current_mish_children);
+			break;
+		}
+		current_pos = list_get_previous_position(current_pos, \
+													current_mish_children);
+	}
+
+}
+
+void setup_signal_handling(){
+	struct sigaction new_action, old_action;
+
+	  /* Set up the structure to specify the new action. */
+	  new_action.sa_handler = mish_signal_handler;
+	  sigemptyset (&new_action.sa_mask);
+	  new_action.sa_flags = 0;
+
+	  sigaction (SIGINT, NULL, &old_action);
+	  if (old_action.sa_handler != SIG_IGN)
+	    sigaction (SIGINT, &new_action, NULL);
 }
 
 /**
@@ -271,7 +338,9 @@ int pipe_and_fork_commands(command *command_array, int number_of_commands){
         	in_pipe[0] = out_pipe[0];
         	in_pipe[1] = out_pipe[1];
 
-
+        	int *child_pid = malloc(sizeof(int));
+        	*child_pid = pid;
+        	list_append(child_pid, current_mish_children);
         }
 
     }

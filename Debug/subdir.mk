@@ -5,16 +5,25 @@
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
 ../execute.c \
+../list.c \
 ../mish.c \
 ../parser.c 
 
+O_SRCS += \
+../execute.o \
+../list.o \
+../mish.o \
+../parser.o 
+
 OBJS += \
 ./execute.o \
+./list.o \
 ./mish.o \
 ./parser.o 
 
 C_DEPS += \
 ./execute.d \
+./list.d \
 ./mish.d \
 ./parser.d 
 
