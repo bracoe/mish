@@ -9,12 +9,6 @@ C_SRCS += \
 ../mish.c \
 ../parser.c 
 
-O_SRCS += \
-../execute.o \
-../list.o \
-../mish.o \
-../parser.o 
-
 OBJS += \
 ./execute.o \
 ./list.o \

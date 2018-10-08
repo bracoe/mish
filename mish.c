@@ -64,7 +64,7 @@ void kill_children(){
 		//printf("Child pid: %d", child_pid);
 		int ret = kill(child_pid, SIGINT);
 		if(ret < 0){
-			perror("Killed child process: ");
+			perror("Killed child process");
 		}
 		current_pos = list_get_previous_position(current_pos, \
 												current_mish_children);
@@ -98,7 +98,7 @@ int main(int argc, char const *argv[]) {
         		continue;
         	}
         	else if(errno != 0){
-        		perror("Reading input: ");
+        		perror("Reading input");
         		continue;
         	}
         	else{
@@ -121,6 +121,7 @@ int main(int argc, char const *argv[]) {
             wait_for_children(number_of_commands);
         }
     }
+    list_kill(current_mish_children); // should be empty
     return 0;
 }
 
@@ -136,7 +137,7 @@ void wait_for_children(int num_of_children){
     while(num_of_completed_children < num_of_children){
         if((complete_child = wait(&status)) < 0){
         	if(errno != EINTR){
-        		perror("Wait for child error: ");
+        		perror("Wait for child error");
 				fprintf(stderr, "Child was %d\n", complete_child);
         	}
         }
@@ -152,8 +153,10 @@ void remove_child_from_list_of_current_children(pid_t complete_child){
 								current_mish_children);
 
 	while(current_pos != first_pos){
-		if(complete_child == *(int*)list_get_value(current_pos)){
+		pid_t *pid_in_list = (pid_t*)list_get_value(current_pos);
+		if(complete_child == *pid_in_list){
 			list_remove_element(current_pos, current_mish_children);
+			free(pid_in_list);
 			break;
 		}
 		current_pos = list_get_previous_position(current_pos, \
@@ -226,7 +229,7 @@ void internal_cd(char *dir){
 
     int ret = chdir(dir);
     if(ret < 0){
-        perror("Internal cd:");
+        perror("Internal cd");
     }
 }
 
@@ -238,7 +241,7 @@ void internal_cd(char *dir){
 char *get_home_directory(){
     struct passwd *pw = getpwuid(getuid());
     if(pw == NULL){
-        perror("Get home dir: ");
+        perror("Get home dir");
     }
     char *dir = pw->pw_dir;
     return dir;
@@ -264,7 +267,7 @@ void internal_echo(char **message, int words){
     //Print last word without blanksapce
     int ret = printf("%s\n",message[words-1]);
     if(ret < 0){
-        perror("Internal echo:");
+        perror("Internal echo");
     }
 }
 
@@ -289,7 +292,7 @@ int pipe_and_fork_commands(command *command_array, int number_of_commands){
 
         pid_t pid = fork();
         if ( pid < 0 ) {
-            perror("fork:");
+            perror("fork");
             exit(1);
 
         } else if ( pid == 0 ) { //Child process
@@ -299,24 +302,22 @@ int pipe_and_fork_commands(command *command_array, int number_of_commands){
 				//printf("Child: changing stdin!\n");
 				ret = dupPipe(in_pipe, READ_END, STDIN_FILENO);
 				if(ret < 0){
-					fprintf(stderr, "inpipe");
 					return -1;
 				}
 				ret = close(in_pipe[WRITE_END]);
 				if(ret < 0){
-					perror("Closing pipe write end: ");
+					perror("Closing pipe write end");
 				}
 			}
         	if(i != number_of_commands-1){
 				//printf("Child: changing stdout!\n");
 				ret = dupPipe(out_pipe, WRITE_END, STDOUT_FILENO);
 				if(ret < 0){
-					fprintf(stderr, "outpipe");
 					return -1;
 				}
 				ret = close(out_pipe[READ_END]);
 				if(ret < 0){
-					perror("Closing pipe read end: ");
+					perror("Closing pipe read end");
 				}
 			}
 
@@ -328,11 +329,11 @@ int pipe_and_fork_commands(command *command_array, int number_of_commands){
         	if(i != 0){
         		int ret = close(in_pipe[READ_END]);
 				if(ret < 0){
-					perror("Closing pipe: ");
+					perror("Closing pipe");
 				}
 				ret = close(in_pipe[WRITE_END]);
 				if(ret < 0){
-					perror("Closing pipe: ");
+					perror("Closing pipe");
 				}
 			}
         	in_pipe[0] = out_pipe[0];
@@ -359,7 +360,7 @@ int execute_external_command(command cmd){
     //printf("Child: Running process: %s", cmd.argv[0]);
     int ret = execvp(cmd.argv[0],cmd.argv);
     if(ret < 0){
-        perror("Execute external command: ");
+        perror(cmd.argv[0]);
     }
     return 0;
 }
