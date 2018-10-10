@@ -7,15 +7,15 @@ CFLAGS = -g -std=gnu11 -Wall -Wextra -Werror -Wmissing-declarations \
  -Wparentheses -Wunused -Wold-style-definition -Wundef -Wshadow \
  -Wstrict-prototypes -Wswitch-default -Wunreachable-code
 
-OBJ = parser.o mish.o execute.o list.o
+OBJ = parser.o mish.o execute.o list.o sighant.o
 
 #make program
 all:mish
 
-mish: parser.o mish.o execute.o list.o
+mish: $(OBJ)
 	$(CC) $(OBJ) -o mish
 
-mish.o: mish.c parser.h execute.h list.h
+mish.o: mish.c parser.h execute.h list.h sighant.h
 	$(CC) $(CFLAGS) mish.c -c
 
 execute.o: execute.c execute.h
@@ -26,6 +26,9 @@ parser.o: parser.c parser.h
 	
 list.o: list.c list.h
 	$(CC) $(CFLAGS) list.c -c
+	
+sighant.o: sighant.c sighant.h list.h
+	$(CC) $(CFLAGS) sighant.c -c
 
 #Other options
 .PHONY: clean valgrind nemiver

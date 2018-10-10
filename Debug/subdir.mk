@@ -7,19 +7,22 @@ C_SRCS += \
 ../execute.c \
 ../list.c \
 ../mish.c \
-../parser.c 
+../parser.c \
+../sighant.c 
 
 OBJS += \
 ./execute.o \
 ./list.o \
 ./mish.o \
-./parser.o 
+./parser.o \
+./sighant.o 
 
 C_DEPS += \
 ./execute.d \
 ./list.d \
 ./mish.d \
-./parser.d 
+./parser.d \
+./sighant.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes

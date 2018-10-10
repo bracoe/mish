@@ -9,6 +9,7 @@
 #include "parser.h"
 #include "execute.h"
 #include "list.h"
+#include "sighant.h"
 
 /* Standard libraries */
 #include <stdio.h>
@@ -19,15 +20,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <pwd.h>
 
 
 /* Defines */
 #define PRINT_PROMPT fprintf(stderr, "mish%% "); fflush(stderr);
 
-/*Global variable */
-struct list *current_mish_children;
+
 
 /*Function prototypes.*/
 void pipe_and_fork_commands(command *command_array, int number_of_commands);
@@ -39,36 +38,8 @@ void run_internal_commands(command *command_array, int number_of_commands);
 void wait_for_children(int num_of_children);
 int redirect_extrenal_command(command cmd);
 char *get_home_directory(void);
-void setup_signal_handling(void);
 void remove_child_from_list_of_current_children(pid_t complete_child);
-void kill_children(void);
-void mish_signal_handler(int signo);
-
-void mish_signal_handler(int signo){
-	if(signo == SIGINT){
-		//printf("Got interrupt sig handle");
-		kill_children();
-	}
-
-}
-
-void kill_children(void){
-	list_pos first_pos = list_get_first_position(current_mish_children);
-	list_pos current_pos = \
-	list_get_previous_position(list_get_last_position(current_mish_children), \
-			current_mish_children);
-
-	while(current_pos != first_pos){
-		pid_t child_pid = *(pid_t *)list_get_value(current_pos);
-		//printf("Child pid: %d", child_pid);
-		int ret = kill(child_pid, SIGINT);
-		if(ret < 0){
-			perror("Killed child process");
-		}
-		current_pos = list_get_previous_position(current_pos, \
-												current_mish_children);
-	}
-}
+void main_shell_loop(void);
 
 /**
  * The main function of the program contains an eternal loop to process the
@@ -78,42 +49,52 @@ void kill_children(void){
  */
 int main(void) {
 
-	current_mish_children = list_new();
+	current_shell_children = list_new();
+
 	setup_signal_handling();
 
-    char input_line[MAXLINELEN+1];
-    command command_array[MAXCOMMANDS];
+	main_shell_loop();
 
-    while(1){ //Main terminal loop only quit due to signal.
-        PRINT_PROMPT;
-
-        if(fgets(input_line, MAXLINELEN, stdin) == NULL){
-        	if( feof(stdin) ) {
-                break ;
-             }
-        	else if(errno != 0){
-        		perror("Reading input");
-        		continue;
-        	}
-        	else{
-        		break;
-        	}
-        }
-        int number_of_commands = parse(input_line,command_array);
-
-        if(check_for_internal_commands(command_array, number_of_commands) > 0){
-            //printf("Run internal commands!\n");
-            run_internal_commands(command_array, number_of_commands);
-        }
-        else{ //External commands
-            //printf("Starting external command commands!\n");
-            pipe_and_fork_commands(command_array, number_of_commands);
-
-            wait_for_children(number_of_commands);
-        }
-    }
-    list_kill(current_mish_children); // should be empty
+    list_kill(current_shell_children); // should be empty
     return 0;
+}
+
+/**
+ *
+ */
+void main_shell_loop(void){
+	char input_line[MAXLINELEN+1];
+	    command command_array[MAXCOMMANDS];
+
+	    while(1){ //Main terminal loop only quit due to signal.
+	        PRINT_PROMPT;
+
+	        if(fgets(input_line, MAXLINELEN, stdin) == NULL){
+	        	if( feof(stdin) ) {
+	                break;
+	            }
+	        	else if(errno != 0){
+	        		perror("Reading input");
+	        		continue;
+	        	}
+	        	else{
+	        		break;
+	        	}
+	        }
+	        int number_of_commands = parse(input_line,command_array);
+
+	        if(check_for_internal_commands(command_array, number_of_commands) \
+	        		> 0){
+	            //printf("Run internal commands!\n");
+	            run_internal_commands(command_array, number_of_commands);
+	        }
+	        else{ //External commands
+	            //printf("Starting external command commands!\n");
+	            pipe_and_fork_commands(command_array, number_of_commands);
+
+	            wait_for_children(number_of_commands);
+	        }
+	    }
 }
 
 /**
@@ -128,7 +109,7 @@ void wait_for_children(int num_of_children){
     while(num_of_completed_children < num_of_children){
         if((complete_child = wait(&status)) < 0){
         	if(errno != EINTR){
-        		perror("Wait for child error");
+        		perror("Wait");
         	}
         }
         remove_child_from_list_of_current_children(complete_child);
@@ -137,35 +118,22 @@ void wait_for_children(int num_of_children){
 }
 
 void remove_child_from_list_of_current_children(pid_t complete_child){
-	list_pos first_pos = list_get_first_position(current_mish_children);
+	list_pos first_pos = list_get_first_position(current_shell_children);
 	list_pos current_pos = \
-	list_get_previous_position(list_get_last_position(current_mish_children), \
-								current_mish_children);
+	list_get_previous_position(list_get_last_position(current_shell_children), \
+								current_shell_children);
 
 	while(current_pos != first_pos){
 		pid_t *pid_in_list = (pid_t*)list_get_value(current_pos);
 		if(complete_child == *pid_in_list){
-			list_remove_element(current_pos, current_mish_children);
+			list_remove_element(current_pos, current_shell_children);
 			free(pid_in_list);
 			break;
 		}
 		current_pos = list_get_previous_position(current_pos, \
-													current_mish_children);
+													current_shell_children);
 	}
 
-}
-
-void setup_signal_handling(void){
-	struct sigaction new_action, old_action;
-
-	  /* Set up the structure to specify the new action. */
-	  new_action.sa_handler = mish_signal_handler;
-	  sigemptyset (&new_action.sa_mask);
-	  new_action.sa_flags = 0;
-
-	  sigaction (SIGINT, NULL, &old_action);
-	  if (old_action.sa_handler != SIG_IGN)
-	    sigaction (SIGINT, &new_action, NULL);
 }
 
 /**
@@ -286,10 +254,10 @@ void pipe_and_fork_commands(command *command_array, int number_of_commands){
             exit(1);
 
         } else if ( pid == 0 ) { //Child process
-            //printf("Child: externals redirected!\n");
+
         	int ret = 0;
-        	if(i != 0){
-				//printf("Child: changing stdin!\n");
+        	if(i != 0){ //Change stdin
+
 				ret = dupPipe(in_pipe, READ_END, STDIN_FILENO);
 				if(ret < 0){
 					return;
@@ -298,9 +266,10 @@ void pipe_and_fork_commands(command *command_array, int number_of_commands){
 				if(ret < 0){
 					perror("Closing pipe write end");
 				}
+
 			}
-        	if(i != number_of_commands-1){
-				//printf("Child: changing stdout!\n");
+        	if(i != number_of_commands-1){ //Change stdout
+
 				ret = dupPipe(out_pipe, WRITE_END, STDOUT_FILENO);
 				if(ret < 0){
 					return;
@@ -312,10 +281,10 @@ void pipe_and_fork_commands(command *command_array, int number_of_commands){
 			}
 
             execute_external_command(command_array[i]);
-            return; //Should never happen
 
-        } else {
-            // Parentprocess
+            return;
+
+        } else { // Parentprocess
         	if(i != 0){
         		int ret = close(in_pipe[READ_END]);
 				if(ret < 0){
@@ -331,7 +300,7 @@ void pipe_and_fork_commands(command *command_array, int number_of_commands){
 
         	int *child_pid = malloc(sizeof(int));
         	*child_pid = pid;
-        	list_append(child_pid, current_mish_children);
+        	list_append(child_pid, current_shell_children);
         }
 
     }
