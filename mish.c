@@ -26,8 +26,6 @@
 /* Defines */
 #define PRINT_PROMPT fprintf(stderr, "mish%% "); fflush(stderr);
 
-
-
 /*Function prototypes.*/
 void pipe_and_fork_commands(command *command_array, int number_of_commands);
 int execute_external_command(command cmd);
@@ -42,9 +40,9 @@ void remove_child_from_list_of_current_children(pid_t complete_child);
 void main_shell_loop(void);
 
 /**
- * The main function of the program contains an eternal loop to process the
- * commands given to the mish terminal. This loop can only be terminated using
- * the * signal.
+ * main() - The main function of the program contains an eternal loop to process
+ * the commands given to the mish terminal. This loop can only be terminated
+ * using the signal.
  * @return 0, but should never happen.
  */
 int main(void) {
@@ -60,7 +58,11 @@ int main(void) {
 }
 
 /**
- *
+ * main_shell_loop() - The main loop for the shell. This function handles the
+ * given commands given to stdin. A parse is done on the input and check for
+ * internal commands. If an internal command is found, the command(s) will be
+ * sent to an internal command handler, else the command(s) will be forked and
+ * executed.
  */
 void main_shell_loop(void){
 	char input_line[MAXLINELEN+1];
@@ -100,6 +102,7 @@ void main_shell_loop(void){
 /**
  * wait_for_children() - Makes the mish process wait until the children finish
  * their command which should be executed.
+ *
  * @param num_of_children The number of children should be waited on.
  */
 void wait_for_children(int num_of_children){
@@ -117,6 +120,12 @@ void wait_for_children(int num_of_children){
     }
 }
 
+/**
+ * remove_child_from_list_of_current_children() - Steps through the dynamic list
+ * of the current shell's children and remove the given child's pid.
+ *
+ * @param The child's pid to remove from the list.
+ */
 void remove_child_from_list_of_current_children(pid_t complete_child){
 	list_pos first_pos = list_get_first_position(current_shell_children);
 	list_pos current_pos = \
@@ -137,7 +146,16 @@ void remove_child_from_list_of_current_children(pid_t complete_child){
 }
 
 /**
+ * check_for_internal_commands() - Counts the number of internal commands in the
+ * given array of command structures. If an internal and external commands are
+ * found in the array, the function will give an error. Asumes only "cd" and
+ * "echo" are internal commands.
  *
+ * @param command_array A pointer to an array of commands.
+ * @param number_of_commands The number of commands in the array.
+ *
+ * @return 0 if only external commands or the number of internal commands. If
+ * internal and external commands are mixed, -1 will be returned.
  */
 int check_for_internal_commands(command *command_array, int number_of_commands){
     int internal_commands = 0;
@@ -155,15 +173,23 @@ int check_for_internal_commands(command *command_array, int number_of_commands){
 }
 
 /**
+ * run_internal_commands() - Calls on the appropriate execution-function
+ * depending on whether the given function is cd or echo. This function amuses
+ * only "cd" and "echo" are internal commands.
  *
+ * @param command_array A pointer to an array of internal commands.
+ * @param number_of_commands The number of commands in the array.
  */
 void run_internal_commands(command *command_array, int number_of_commands){
     for(int i = 0; i < number_of_commands; i++){
         if(strcmp(command_array[i].argv[0], "cd") == 0){
             internal_cd(command_array[i].argv[1]);
         }
-        else{
+        else if(strcmp(command_array[i].argv[0], "echo") == 0){
             internal_echo(command_array[i].argv, command_array[i].argc);
+        }
+        else {
+        	fprintf(stderr, "Got an unexpected internal command!");
         }
     }
 }
@@ -194,7 +220,7 @@ void internal_cd(char *dir){
 /**
  * get_home_directory() - Gets the home directory of the current process owner.
  *
- * @return The current home directory.
+ * @return The current home directory as a string.
  */
 char *get_home_directory(void){
     struct passwd *pw = getpwuid(getuid());

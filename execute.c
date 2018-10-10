@@ -26,7 +26,8 @@ int dupPipe(int pip[2], int end, int destfd){
     int ret = dup2(pip[end], destfd);
     if(ret < 0){
         perror("Duplication of pipe");
-        fprintf(stderr, "dest file pipe: %d, des: %d, end: %d\n", pip[end], destfd, end);
+        fprintf(stderr, "dest file pipe: %d, des: %d, end: %d\n", pip[end], \
+        		destfd, end);
         return -1;
     }
 
@@ -39,13 +40,13 @@ int dupPipe(int pip[2], int end, int destfd){
 int redirect(char *filename, int flags, int destfd){
     int fd = open(filename, flags);
     if(fd < 0){
-        perror("Redirect");
+        perror(filename);
         return -1;
     }
 
     int ret = dup2(fd, destfd);
     if(ret < 0){
-        perror("Redirect dup");
+        perror(filename);
     }
 
     return ret;
