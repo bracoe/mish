@@ -27,17 +27,18 @@
 #define PRINT_PROMPT fprintf(stderr, "mish%% "); fflush(stderr);
 
 /*Function prototypes.*/
-void pipe_and_fork_commands(command *command_array, int number_of_commands);
-int execute_external_command(command cmd);
-void internal_cd(char *dir);
-void internal_echo(char **message, int words);
+void main_shell_loop(void);
+void wait_for_children(int num_of_children);
+void remove_child_from_list_of_current_children(pid_t complete_child);
 int check_for_internal_commands(command *command_array, int number_of_commands);
 void run_internal_commands(command *command_array, int number_of_commands);
-void wait_for_children(int num_of_children);
-int redirect_extrenal_command(command cmd);
+void internal_cd(char *dir);
 char *get_home_directory(void);
-void remove_child_from_list_of_current_children(pid_t complete_child);
-void main_shell_loop(void);
+void internal_echo(char **message, int words);
+void pipe_and_fork_commands(command *command_array, int number_of_commands);
+void execute_external_command(command cmd);
+int redirect_extrenal_command(command cmd);
+
 
 /**
  * main() - The main function of the program contains an eternal loop to process
@@ -66,37 +67,37 @@ int main(void) {
  */
 void main_shell_loop(void){
 	char input_line[MAXLINELEN+1];
-	    command command_array[MAXCOMMANDS];
+	command command_array[MAXCOMMANDS];
 
-	    while(1){ //Main terminal loop only quit due to signal.
-	        PRINT_PROMPT;
+	while(1){ //Main terminal loop only quit due to signal.
+		PRINT_PROMPT;
 
-	        if(fgets(input_line, MAXLINELEN, stdin) == NULL){
-	        	if( feof(stdin) ) {
-	                break;
-	            }
-	        	else if(errno != 0){
-	        		perror("Reading input");
-	        		continue;
-	        	}
-	        	else{
-	        		break;
-	        	}
-	        }
-	        int number_of_commands = parse(input_line,command_array);
+		if(fgets(input_line, MAXLINELEN, stdin) == NULL){
+			if( feof(stdin) ) {
+				break;
+			}
+			else if(errno != 0){
+				perror("Reading input");
+				continue;
+			}
+			else{
+				break;
+			}
+		}
+		int number_of_commands = parse(input_line,command_array);
 
-	        if(check_for_internal_commands(command_array, number_of_commands) \
-	        		> 0){
-	            //printf("Run internal commands!\n");
-	            run_internal_commands(command_array, number_of_commands);
-	        }
-	        else{ //External commands
-	            //printf("Starting external command commands!\n");
-	            pipe_and_fork_commands(command_array, number_of_commands);
+		if(check_for_internal_commands(command_array, number_of_commands) \
+				> 0){
+			//printf("Run internal commands!\n");
+			run_internal_commands(command_array, number_of_commands);
+		}
+		else{ //External commands
+			//printf("Starting external command commands!\n");
+			pipe_and_fork_commands(command_array, number_of_commands);
 
-	            wait_for_children(number_of_commands);
-	        }
-	    }
+			wait_for_children(number_of_commands);
+		}
+	}
 }
 
 /**
@@ -148,7 +149,7 @@ void remove_child_from_list_of_current_children(pid_t complete_child){
 /**
  * check_for_internal_commands() - Counts the number of internal commands in the
  * given array of command structures. If an internal and external commands are
- * found in the array, the function will give an error. Asumes only "cd" and
+ * found in the array, the function will give an error. Assumes only "cd" and
  * "echo" are internal commands.
  *
  * @param command_array A pointer to an array of commands.
@@ -256,7 +257,10 @@ void internal_echo(char **message, int words){
 }
 
 /**
+ * pipe_and_fork_commands() -
  *
+ * @param
+ * @param
  */
 void pipe_and_fork_commands(command *command_array, int number_of_commands){
 
@@ -334,9 +338,13 @@ void pipe_and_fork_commands(command *command_array, int number_of_commands){
 }
 
 /**
+ * execute_external_command() - Redirects the command if it has to be
+ * redirected and executes the command.
  *
+ * @param cmd The command structure with the external command which should be
+ * executed and redirected if need be.
  */
-int execute_external_command(command cmd){
+void execute_external_command(command cmd){
 	//printf("Child: pipes connected!\n");
 	if(redirect_extrenal_command(cmd) < 0){
 		//fprintf(stderr, "Could not redirect for %s\n", cmd.argv[0]);

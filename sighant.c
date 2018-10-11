@@ -5,13 +5,21 @@
  *      Author: bram
  */
 
+/* Include own header */
 #include "sighant.h"
 
+/*Include default libraries */
 #include <stdio.h>
 #include <signal.h>
 #include <errno.h>
+
+
 /**
+ * shell_signal_handler() - The handler which the signal will be passed along to
+ *  by sigaction. If the signal is an interrupt, a function will be call which
+ *  will kill all the child processes. Else the default action should occur.
  *
+ *  @param signo The identifier of the signal.
  */
 void shell_signal_handler(int signo){
 	if(signo == SIGINT){
@@ -21,7 +29,9 @@ void shell_signal_handler(int signo){
 }
 
 /**
- *
+ * setup_signal_handling() - Sets up sigaction so the interrupt signal will be
+ * sent to the handler. The default action should occur for all the other
+ * signals.
  */
 void setup_signal_handling(void){
 	struct sigaction new_action, old_action;
