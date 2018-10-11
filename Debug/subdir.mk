@@ -10,6 +10,9 @@ C_SRCS += \
 ../parser.c \
 ../sighant.c 
 
+O_SRCS += \
+../parser.o 
+
 OBJS += \
 ./execute.o \
 ./list.o \

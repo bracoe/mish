@@ -28,7 +28,7 @@
 
 /*Function prototypes.*/
 void main_shell_loop(void);
-void wait_for_children(int num_of_children);
+void wait_for_children(void);
 void remove_child_from_list_of_current_children(pid_t complete_child);
 int check_for_internal_commands(command *command_array, int number_of_commands);
 void run_internal_commands(command *command_array, int number_of_commands);
@@ -37,7 +37,7 @@ char *get_home_directory(void);
 void internal_echo(char **message, int words);
 void pipe_and_fork_commands(command *command_array, int number_of_commands);
 void execute_external_command(command cmd);
-int redirect_extrenal_command(command cmd);
+int redirect_external_command(command cmd);
 
 
 /**
@@ -95,7 +95,7 @@ void main_shell_loop(void){
 			//printf("Starting external command commands!\n");
 			pipe_and_fork_commands(command_array, number_of_commands);
 
-			wait_for_children(number_of_commands);
+			wait_for_children();
 		}
 	}
 }
@@ -103,14 +103,12 @@ void main_shell_loop(void){
 /**
  * wait_for_children() - Makes the mish process wait until the children finish
  * their command which should be executed.
- *
- * @param num_of_children The number of children should be waited on.
  */
-void wait_for_children(int num_of_children){
+void wait_for_children(void){
     int num_of_completed_children = 0;
     int status = 0;
     pid_t complete_child;
-    while(num_of_completed_children < num_of_children){
+    while(!list_is_empty(current_shell_children)){
         if((complete_child = wait(&status)) < 0){
         	if(errno != EINTR){
         		perror("Wait");
@@ -346,7 +344,7 @@ void pipe_and_fork_commands(command *command_array, int number_of_commands){
  */
 void execute_external_command(command cmd){
 	//printf("Child: pipes connected!\n");
-	if(redirect_extrenal_command(cmd) < 0){
+	if(redirect_external_command(cmd) < 0){
 		//fprintf(stderr, "Could not redirect for %s\n", cmd.argv[0]);
 	}
     //printf("Child: Running process: %s", cmd.argv[0]);
@@ -358,14 +356,14 @@ void execute_external_command(command cmd){
 }
 
 /**
- * redirect_extrenal_command() - Redirects the input or output of the the
+ * redirect_external_command() - Redirects the input or output of the the
  * command. The if the input or output of the command struct, is not NULL, then
  * it will be redirected.
  *
  * @param cmd the external command which should be redirected.
  * @return 0 on success or -1 on failure.
  */
-int redirect_extrenal_command(command cmd){
+int redirect_external_command(command cmd){
     //Check if input/output has to be redirected
     if(cmd.infile != NULL){
         //printf("Child: inputfile: %s\n", cmd.infile);
