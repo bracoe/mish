@@ -1,8 +1,11 @@
 /*
- * sighant.c
+ * sighant.c Is the source code for the signalhandler of mish. Here the
+ * sigaction struct is setup to catch an interrupt and pass it on to the
+ * children of the shell. The pids of these children are assumed to be saved
+ * in the current_shell_children list.
  *
  *  Created on: 10 Oct 2018
- *      Author: bram
+ *      Author: Bram Coenen (tfy15bcn)
  */
 
 /* Include own header */
@@ -47,7 +50,8 @@ void setup_signal_handling(void){
 }
 
 /**
- *
+ * kill_children() - Steps through the entire list with the pids of the
+ * childprocesses and sends an interrupt signal.
  */
 void kill_children(void){
 	list_pos first_pos = list_get_first_position(current_shell_children);

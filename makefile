@@ -1,3 +1,9 @@
+# The makefile used to compile mish
+#
+# Created on: 5 Oct 2018
+#     Author: Bram Coenen (tfy15bcn)
+#
+
 # Which compiler
 CC = gcc
 
@@ -31,7 +37,7 @@ sighant.o: sighant.c sighant.h list.h
 	$(CC) $(CFLAGS) sighant.c -c
 
 #Other options
-.PHONY: clean valgrind nemiver
+.PHONY: clean valgrind
 
 clean:
 	rm -f $(OBJ)

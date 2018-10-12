@@ -1,8 +1,19 @@
 /*
- * mish.c
+ * mish.c Is the source code for a simple shell. This shell should be able to
+ * handle external commands as well as two internal commands, "cd" and "echo".
+ * For communication between external commands, pipes will be used.
+ *
+ * If "cd" is sent to the terminal without an argument, the working directory
+ * will be changed to the processes home directory. Else the argument will be
+ * passed as the working directory.
+ *
+ * The shell should pass on the interrupt signal to it's children and therefore
+ * a signalhandler must be set up.
+ *
+ * If EOF is passed to the stdin of the shell, the shell will exit.
  *
  *  Created on: 5 Oct 2018
- *      Author: bram
+ *      Author: Bram Coenen (tfy15bcn)
  */
 
 /* Own inculdes */
@@ -255,10 +266,17 @@ void internal_echo(char **message, int words){
 }
 
 /**
- * pipe_and_fork_commands() -
+ * pipe_and_fork_commands() - Create the nesseccary pipes for the for the given
+ * commands to communicate with each other. Then it forks a new process where
+ * the child process goes on to connected and close the required pipes and it's
+ * ends.
  *
- * @param
- * @param
+ * The parent process add the child to the list of active children. The parent
+ * process also closes the pipe which is npt used anymore and moves an out_pipe
+ * to the in_pipe variable in order to prepare for the next command.
+ *
+ * @param command_array An array of external commands.
+ * @param number_of_commands The number of external commands.
  */
 void pipe_and_fork_commands(command *command_array, int number_of_commands){
 
@@ -343,11 +361,11 @@ void pipe_and_fork_commands(command *command_array, int number_of_commands){
  * executed and redirected if need be.
  */
 void execute_external_command(command cmd){
-	//printf("Child: pipes connected!\n");
+
 	if(redirect_external_command(cmd) < 0){
 		//fprintf(stderr, "Could not redirect for %s\n", cmd.argv[0]);
+		exit(errno);
 	}
-    //printf("Child: Running process: %s", cmd.argv[0]);
     int ret = execvp(cmd.argv[0],cmd.argv);
     if(ret < 0){
         perror(cmd.argv[0]);
