@@ -49,7 +49,12 @@ int dupPipe(int pip[2], int end, int destfd){
  * Returns:	-1 on error, else destfd
  */
 int redirect(char *filename, int flags, int destfd){
-    int fd = open(filename, flags);
+	if( access( filename, F_OK ) != -1 ) {
+	    // file exists
+		fprintf(stderr, "File already exists!\n");
+		return -1;
+	}
+    int fd = open(filename, flags , 0773);
     if(fd < 0){
         perror(filename);
         return -1;

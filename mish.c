@@ -393,7 +393,7 @@ void free_and_kill_entire_list(void){
 int execute_external_command(command cmd){
 
 	if(redirect_external_command(cmd) < 0){
-		exit(errno);
+		return -1;
 	}
     int ret = execvp(cmd.argv[0],cmd.argv);
     if(ret < 0){
