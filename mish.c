@@ -12,8 +12,9 @@
  *
  * If EOF is passed to the stdin of the shell, the shell will exit.
  *
- *  Created on: 5 Oct 2018
+ *  Created on: 29 Oct 2018
  *      Author: Bram Coenen (tfy15bcn)
+ *     Version: 2
  */
 
 /* Own inculdes */
@@ -47,8 +48,11 @@ void internal_cd(char *dir);
 char *get_home_directory(void);
 void internal_echo(char **message, int words);
 void pipe_and_fork_commands(command *command_array, int number_of_commands);
-void execute_external_command(command cmd);
+void free_and_kill_entire_list(void);
+int execute_external_command(command cmd);
 int redirect_external_command(command cmd);
+
+
 
 
 /**
@@ -80,7 +84,7 @@ void main_shell_loop(void){
 	char input_line[MAXLINELEN+1];
 	command command_array[MAXCOMMANDS];
 
-	while(1){ //Main terminal loop only quit due to signal.
+	while(1){ //Main terminal loop, only quit due to signal.
 		PRINT_PROMPT;
 
 		if(fgets(input_line, MAXLINELEN, stdin) == NULL){
@@ -326,7 +330,11 @@ void pipe_and_fork_commands(command *command_array, int number_of_commands){
 				}
 			}
 
-            execute_external_command(command_array[i]);
+            if(execute_external_command(command_array[i]) != 0){
+            	//Memory is copied, and a child will not have children.
+            	free_and_kill_entire_list();
+            	exit(1);
+            }
 
             return;
 
@@ -341,6 +349,7 @@ void pipe_and_fork_commands(command *command_array, int number_of_commands){
 					perror("Closing pipe");
 				}
 			}
+
         	in_pipe[0] = out_pipe[0];
         	in_pipe[1] = out_pipe[1];
 
@@ -354,21 +363,42 @@ void pipe_and_fork_commands(command *command_array, int number_of_commands){
 }
 
 /**
+ * free_and_kill_entire_list() - Destroys the current_shell_children list of
+ * the process. The inserted pids are also destroyed.
+ */
+void free_and_kill_entire_list(void){
+	list_pos first_pos = list_get_first_position(current_shell_children);
+	list_pos current_pos = \
+	list_get_previous_position(list_get_last_position(current_shell_children), \
+			current_shell_children);
+
+	while(current_pos != first_pos){
+		int *pid = (int*)list_get_value(current_pos);
+		current_pos = list_remove_element(current_pos, current_shell_children);
+		free(pid);
+	}
+
+	list_kill(current_shell_children);
+
+}
+
+/**
  * execute_external_command() - Redirects the command if it has to be
  * redirected and executes the command.
  *
  * @param cmd The command structure with the external command which should be
  * executed and redirected if need be.
+ * @return 0 on success -1 on failure.
  */
-void execute_external_command(command cmd){
+int execute_external_command(command cmd){
 
 	if(redirect_external_command(cmd) < 0){
-		//fprintf(stderr, "Could not redirect for %s\n", cmd.argv[0]);
 		exit(errno);
 	}
     int ret = execvp(cmd.argv[0],cmd.argv);
     if(ret < 0){
         perror(cmd.argv[0]);
+        return -1;
     }
     exit(errno);
 }
@@ -384,16 +414,15 @@ void execute_external_command(command cmd){
 int redirect_external_command(command cmd){
     //Check if input/output has to be redirected
     if(cmd.infile != NULL){
-        //printf("Child: inputfile: %s\n", cmd.infile);
+
         int ret = redirect(cmd.infile, O_RDONLY, STDIN_FILENO);
         if(ret < 0){
-            //fprintf(stderr, "Child could not redirect infile!\n");
             return -1;
         }
     }
     if(cmd.outfile != NULL){
-        //printf("Child: outputfile: %s\n", cmd.outfile);
-        int ret = redirect(cmd.outfile, O_WRONLY | O_CREAT, STDOUT_FILENO);
+
+        int ret = redirect(cmd.outfile, O_WRONLY | O_CREAT, STDOUT_FILENO); //TODO: Don't redirect to the file if it exist
         if(ret < 0){
             fprintf(stderr, "Child could not redirect outfile!\n");
             return -1;
