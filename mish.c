@@ -313,6 +313,7 @@ void pipe_and_fork_commands(command *command_array, int number_of_commands){
 					return;
 				}
 				ret = close(in_pipe[WRITE_END]);
+				ret += close(in_pipe[READ_END]);
 				if(ret < 0){
 					perror("Closing pipe write end");
 				}
@@ -325,6 +326,7 @@ void pipe_and_fork_commands(command *command_array, int number_of_commands){
 					return;
 				}
 				ret = close(out_pipe[READ_END]);
+				ret += close(out_pipe[WRITE_END]);
 				if(ret < 0){
 					perror("Closing pipe read end");
 				}
@@ -333,6 +335,12 @@ void pipe_and_fork_commands(command *command_array, int number_of_commands){
             if(execute_external_command(command_array[i]) != 0){
             	//Memory is copied, and a child will not have children.
             	free_and_kill_entire_list();
+            	ret = close(STDIN_FILENO);
+            	ret += close(STDOUT_FILENO);
+            	ret += close(STDERR_FILENO);
+            	if(ret < 0){
+					perror("Closing pipe read end");
+				}
             	exit(1);
             }
 
